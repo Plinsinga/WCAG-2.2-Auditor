@@ -81,6 +81,7 @@ export const generateHtml = (data: ReportData): string => {
     .card.na, .card.oos { border-left-color: #9ca3af; background: #f9fafb; }
     .card.nc { border-left-color: #d97706; background: #fff7ed; }
     .finding { background: #fff; padding: 15px; margin-top: 10px; border: 1px solid #eee; }
+    .reason-block { margin-top: 10px; font-style: italic; color: #555; }
     @media print {
       body { background: #fff; }
       .container { box-shadow: none; max-width: 100%; }
@@ -285,6 +286,10 @@ export const generateHtml = (data: ReportData): string => {
           <p>${c.description}</p>
           <p><strong>Resultaat:</strong> <span class="status-${cardClass === 'oos' ? 'oos' : cardClass}">${c.result}</span></p>
       `;
+
+      if (c.reason) {
+          html += `<div class="reason-block"><strong>Toelichting:</strong> ${c.reason}</div>`;
+      }
 
       if (c.findings && c.findings.length > 0) {
         c.findings.forEach(f => {

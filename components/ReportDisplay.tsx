@@ -341,18 +341,23 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
                                     {criterion.result}
                                 </p>
                                 
-                                {(criterion.reason) && (
-                                     <p className="text-gray-700 mt-1 italic">{criterion.reason}</p>
-                                )}
-
-                                {!criterion.reason && criterion.result === WCAGResult.NOT_CHECKED && (
-                                    <p className="text-gray-700 mt-1">Deze richtlijn is op dit moment nog niet onderzocht.</p>
-                                )}
-                                {!criterion.reason && criterion.result === WCAGResult.NA && (
-                                    <p className="text-gray-700 mt-1">Deze richtlijn is niet relevant voor de huidige content.</p>
-                                )}
-                                {!criterion.reason && criterion.result === WCAGResult.OUT_OF_SCOPE && (
-                                    <p className="text-gray-700 mt-1">Dit onderdeel valt buiten de scope van dit onderzoek.</p>
+                                {criterion.reason ? (
+                                     <p className="text-gray-700 mt-2">
+                                        <span className="font-semibold block text-xs uppercase tracking-wide opacity-70 mb-0.5">Toelichting</span>
+                                        <span className="italic block">{criterion.reason}</span>
+                                     </p>
+                                ) : (
+                                    <>
+                                        {criterion.result === WCAGResult.NOT_CHECKED && (
+                                            <p className="text-gray-700 mt-1">Deze richtlijn is op dit moment nog niet onderzocht.</p>
+                                        )}
+                                        {criterion.result === WCAGResult.NA && (
+                                            <p className="text-gray-700 mt-1">Deze richtlijn is niet relevant voor de huidige content.</p>
+                                        )}
+                                        {criterion.result === WCAGResult.OUT_OF_SCOPE && (
+                                            <p className="text-gray-700 mt-1">Dit onderdeel valt buiten de scope van dit onderzoek.</p>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { analyzeHtml } from './services/geminiService';
 import ReportDisplay from './components/ReportDisplay';
 import { ReportData } from './types';
-import { generateMarkdown } from './utils/markdownGenerator';
 import { generateHtml } from './utils/htmlGenerator';
 
 function App() {
@@ -20,7 +19,6 @@ function App() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copySuccess, setCopySuccess] = useState(false);
 
   const handleMetaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -65,27 +63,18 @@ function App() {
     }
   };
 
-  const handleCopyMarkdown = () => {
-    if (!reportData) return;
-    const md = generateMarkdown(reportData);
-    navigator.clipboard.writeText(md).then(() => {
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    });
-  };
-
-  const handleDownloadMarkdown = () => {
-    if (!reportData) return;
-    const md = generateMarkdown(reportData);
-    const blob = new Blob([md], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `WCAG-Rapport-${reportData.meta.date.replace(/\s/g, '-')}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleNewReport = () => {
+    // Clear the report view
+    setReportData(null);
+    // Clear errors
+    setError(null);
+    // Clear HTML input
+    setHtmlInput('');
+    // Update metadata: Keep client and researchers, clear product/subject
+    setMetaData(prev => ({
+      ...prev,
+      product: ''
+    }));
   };
 
   const handleDownloadHtml = () => {
@@ -114,38 +103,23 @@ function App() {
           {reportData && (
             <div className="flex flex-wrap gap-2 items-center">
               <button 
-                onClick={handleCopyMarkdown} 
-                className={`px-3 py-1.5 rounded-md font-medium text-sm transition-colors flex items-center gap-2 ${
-                  copySuccess ? 'bg-green-500 text-white' : 'bg-emerald-800 hover:bg-emerald-900 text-white'
-                }`}
-              >
-                {copySuccess ? (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                    Gekopieerd!
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
-                    Kopieer MD
-                  </>
-                )}
-              </button>
-
-              <button 
-                onClick={handleDownloadMarkdown} 
-                className="bg-emerald-800 text-white px-3 py-1.5 rounded-md font-medium text-sm hover:bg-emerald-900 transition-colors flex items-center gap-2"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                Download MD
-              </button>
-
-              <button 
                 onClick={handleDownloadHtml} 
-                className="bg-white text-emerald-700 px-3 py-1.5 rounded-md font-medium text-sm hover:bg-emerald-50 transition-colors flex items-center gap-2"
+                className="bg-emerald-900 text-white px-4 py-2 rounded-md font-bold text-sm hover:bg-emerald-950 transition-colors flex items-center gap-2 shadow-sm border border-emerald-800"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
                 Download HTML
+              </button>
+
+              <button 
+                onClick={handleNewReport} 
+                className="bg-white text-emerald-800 px-4 py-2 rounded-md font-bold text-sm hover:bg-emerald-50 transition-colors flex items-center gap-2 shadow-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                Nieuw rapport
               </button>
             </div>
           )}
@@ -270,14 +244,6 @@ function App() {
           </div>
         ) : (
           <div className="animate-fade-in-up">
-            <div className="mb-6 flex justify-between items-center no-print">
-               <button 
-                 onClick={() => setReportData(null)}
-                 className="text-emerald-700 font-medium hover:underline flex items-center gap-1"
-               >
-                 ← Terug naar invoer
-               </button>
-            </div>
             <ReportDisplay data={reportData} />
           </div>
         )}
