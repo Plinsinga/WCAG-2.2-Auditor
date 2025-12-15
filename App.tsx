@@ -47,9 +47,19 @@ function App() {
       // Pass both HTML and Metadata to the service
       const data = await analyzeHtml(htmlInput, metaData);
       setReportData(data);
-    } catch (err) {
-      setError("Er ging iets mis bij het genereren van het rapport. Probeer het opnieuw.");
+    } catch (err: any) {
       console.error(err);
+      let errorMessage = "Er ging iets mis bij het genereren van het rapport. Probeer het opnieuw.";
+      
+      // Check for common API errors
+      const errString = err?.toString() || "";
+      if (errString.includes("token count") || (err?.message && err.message.includes("token count"))) {
+         errorMessage = "De HTML code is te groot om in één keer te verwerken. Probeer een kleiner stuk code (bijvoorbeeld alleen de <body>).";
+      } else if (errString.includes("400")) {
+         errorMessage = "Er is een technische fout opgetreden (Invalid Argument). Mogelijk is de invoer te complex.";
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
