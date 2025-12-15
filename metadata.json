@@ -1,0 +1,5 @@
+{
+  "name": "WCAG 2.2 Auditor",
+  "description": "Een applicatie om HTML te valideren tegen WCAG 2.2 AA standaarden en professionele auditrapporten te genereren.",
+  "requestFramePermissions": []
+}
