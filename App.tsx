@@ -3,6 +3,7 @@ import { analyzeHtml } from './services/geminiService';
 import ReportDisplay from './components/ReportDisplay';
 import { ReportData } from './types';
 import { generateMarkdown } from './utils/markdownGenerator';
+import { generateHtml } from './utils/htmlGenerator';
 
 function App() {
   const [htmlInput, setHtmlInput] = useState('');
@@ -77,6 +78,20 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadHtml = () => {
+    if (!reportData) return;
+    const html = generateHtml(reportData);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `WCAG-Rapport-${reportData.meta.date.replace(/\s/g, '-')}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 font-sans">
       {/* Header - Sticky for easy access */}
@@ -116,11 +131,11 @@ function App() {
               </button>
 
               <button 
-                onClick={() => window.print()} 
+                onClick={handleDownloadHtml} 
                 className="bg-white text-emerald-700 px-3 py-1.5 rounded-md font-medium text-sm hover:bg-emerald-50 transition-colors flex items-center gap-2"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" /></svg>
-                Print PDF
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                Download HTML
               </button>
             </div>
           )}

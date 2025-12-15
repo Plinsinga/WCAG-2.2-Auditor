@@ -6,8 +6,9 @@ export enum WCAGLevel {
 export enum WCAGResult {
   PASS = 'Voldoet',
   FAIL = 'Voldoet niet',
-  NA = 'Niet van toepassing',
-  NOT_CHECKED = 'Geen oordeel',
+  NOT_CHECKED = 'Nog niet onderzocht',
+  NA = 'Niet relevant',
+  OUT_OF_SCOPE = 'Buiten scope',
 }
 
 export interface Finding {
@@ -23,7 +24,9 @@ export interface Criterion {
   name: string;
   description: string;
   level: WCAGLevel;
+  disciplines?: string;
   result: WCAGResult;
+  reason?: string; // Reason for NOT_CHECKED, NA or OUT_OF_SCOPE
   findings?: Finding[];
 }
 

@@ -8,7 +8,7 @@ export const generateHtml = (data: ReportData): string => {
 
   // Helper for safe stats
   const calculateStats = (level: WCAGLevel) => {
-    let pass = 0, fail = 0, notChecked = 0, na = 0, total = 0;
+    let pass = 0, fail = 0, notChecked = 0, na = 0, outOfScope = 0, total = 0;
     principles.forEach(p => {
       (p.criteria || []).forEach(c => {
         if (c.level === level) {
@@ -17,10 +17,11 @@ export const generateHtml = (data: ReportData): string => {
           else if (c.result === WCAGResult.FAIL) fail++;
           else if (c.result === WCAGResult.NOT_CHECKED) notChecked++;
           else if (c.result === WCAGResult.NA) na++;
+          else if (c.result === WCAGResult.OUT_OF_SCOPE) outOfScope++;
         }
       });
     });
-    return { pass, fail, notChecked, na, total };
+    return { pass, fail, notChecked, na, outOfScope, total };
   };
 
   const statsA = calculateStats(WCAGLevel.A);
@@ -30,8 +31,30 @@ export const generateHtml = (data: ReportData): string => {
     fail: statsA.fail + statsAA.fail,
     notChecked: statsA.notChecked + statsAA.notChecked,
     na: statsA.na + statsAA.na,
+    outOfScope: statsA.outOfScope + statsAA.outOfScope,
     total: statsA.total + statsAA.total
   };
+
+  // Helper to get criteria by level across all principles
+  const getCriteriaByLevel = (level: WCAGLevel) => {
+    const list: Array<{ id: string; name: string; level: string; result: string }> = [];
+    principles.forEach(p => {
+      (p.criteria || []).forEach(c => {
+        if (c.level === level) {
+          list.push({
+            id: c.id,
+            name: c.name,
+            level: c.level,
+            result: c.result
+          });
+        }
+      });
+    });
+    return list;
+  };
+
+  const criteriaA = getCriteriaByLevel(WCAGLevel.A);
+  const criteriaAA = getCriteriaByLevel(WCAGLevel.AA);
 
   const css = `
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f4f4f4; }
@@ -51,10 +74,12 @@ export const generateHtml = (data: ReportData): string => {
     .status-fail { color: #dc2626; font-weight: bold; }
     .status-na { color: #9ca3af; }
     .status-nc { color: #d97706; }
+    .status-oos { color: #6b7280; font-style: italic; }
     .card { background: #fff; border-left: 5px solid #ddd; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .card.fail { border-left-color: #dc2626; background: #fef2f2; }
     .card.pass { border-left-color: #166534; bg-color: #f0fdf4; }
-    .card.na, .card.nc { border-left-color: #9ca3af; background: #f9fafb; }
+    .card.na, .card.oos { border-left-color: #9ca3af; background: #f9fafb; }
+    .card.nc { border-left-color: #d97706; background: #fff7ed; }
     .finding { background: #fff; padding: 15px; margin-top: 10px; border: 1px solid #eee; }
     @media print {
       body { background: #fff; }
@@ -125,8 +150,9 @@ export const generateHtml = (data: ReportData): string => {
           <th>Niveau</th>
           <th>Voldoet</th>
           <th>Voldoet niet</th>
-          <th>Niet onderzocht</th>
-          <th>Buiten scope</th>
+          <th>Nog niet<br>onderzocht</th>
+          <th>Niet<br>relevant</th>
+          <th>Buiten<br>scope</th>
           <th>Totaal</th>
         </tr>
       </thead>
@@ -135,24 +161,27 @@ export const generateHtml = (data: ReportData): string => {
           <td>Niveau A</td>
           <td>${statsA.pass}</td>
           <td class="status-fail">${statsA.fail}</td>
-          <td>${statsA.notChecked}</td>
-          <td>${statsA.na}</td>
+          <td class="status-nc">${statsA.notChecked}</td>
+          <td class="status-na">${statsA.na}</td>
+           <td class="status-oos">${statsA.outOfScope}</td>
           <td>${statsA.total}</td>
         </tr>
         <tr>
           <td>Niveau AA</td>
           <td>${statsAA.pass}</td>
           <td class="status-fail">${statsAA.fail}</td>
-          <td>${statsAA.notChecked}</td>
-          <td>${statsAA.na}</td>
+          <td class="status-nc">${statsAA.notChecked}</td>
+          <td class="status-na">${statsAA.na}</td>
+           <td class="status-oos">${statsAA.outOfScope}</td>
           <td>${statsAA.total}</td>
         </tr>
          <tr>
           <td><strong>Totaal</strong></td>
           <td><strong>${totalStats.pass}</strong></td>
           <td class="status-fail">${totalStats.fail}</td>
-          <td>${totalStats.notChecked}</td>
-          <td>${totalStats.na}</td>
+          <td class="status-nc">${totalStats.notChecked}</td>
+          <td class="status-na">${totalStats.na}</td>
+          <td class="status-oos">${totalStats.outOfScope}</td>
           <td>${totalStats.total}</td>
         </tr>
       </tbody>
@@ -162,38 +191,69 @@ export const generateHtml = (data: ReportData): string => {
     <p style="white-space: pre-line;">${summary.feedback}</p>
   </div>
 
-  <!-- RESULTATEN TABELLEN -->
+  <!-- RESULTATEN NIVEAU A -->
   <div class="page">
-    <h2>Resultaten Overzicht</h2>
+    <h2>Resultaten Niveau A</h2>
     <table>
       <thead>
         <tr>
-          <th style="width: 10%;">ID</th>
-          <th style="width: 70%;">Richtlijn</th>
+          <th style="width: 10%;">Richtlijn</th>
+          <th style="width: 70%;">Omschrijving</th>
           <th style="width: 20%;">Resultaat</th>
         </tr>
       </thead>
       <tbody>
   `;
-
-  principles.forEach(p => {
-    (p.criteria || []).forEach(c => {
+  criteriaA.forEach(c => {
       let statusClass = '';
       if (c.result === WCAGResult.PASS) statusClass = 'status-pass';
       if (c.result === WCAGResult.FAIL) statusClass = 'status-fail';
       if (c.result === WCAGResult.NA) statusClass = 'status-na';
       if (c.result === WCAGResult.NOT_CHECKED) statusClass = 'status-nc';
+      if (c.result === WCAGResult.OUT_OF_SCOPE) statusClass = 'status-oos';
 
       html += `
         <tr>
           <td>${c.id}</td>
-          <td>${c.name} <span style="font-size:0.8em; color:#666;">(${c.level})</span></td>
+          <td>${c.name}</td>
           <td class="${statusClass}">${c.result}</td>
         </tr>
       `;
-    });
   });
+  html += `
+      </tbody>
+    </table>
+  </div>
 
+  <!-- RESULTATEN NIVEAU AA -->
+  <div class="page">
+    <h2>Resultaten Niveau AA</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 10%;">Richtlijn</th>
+          <th style="width: 70%;">Omschrijving</th>
+          <th style="width: 20%;">Resultaat</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  criteriaAA.forEach(c => {
+      let statusClass = '';
+      if (c.result === WCAGResult.PASS) statusClass = 'status-pass';
+      if (c.result === WCAGResult.FAIL) statusClass = 'status-fail';
+      if (c.result === WCAGResult.NA) statusClass = 'status-na';
+      if (c.result === WCAGResult.NOT_CHECKED) statusClass = 'status-nc';
+      if (c.result === WCAGResult.OUT_OF_SCOPE) statusClass = 'status-oos';
+
+      html += `
+        <tr>
+          <td>${c.id}</td>
+          <td>${c.name}</td>
+          <td class="${statusClass}">${c.result}</td>
+        </tr>
+      `;
+  });
   html += `
       </tbody>
     </table>
@@ -217,12 +277,13 @@ export const generateHtml = (data: ReportData): string => {
       if (c.result === WCAGResult.PASS) cardClass = 'pass';
       if (c.result === WCAGResult.FAIL) cardClass = 'fail';
       if (c.result === WCAGResult.NA) cardClass = 'na';
+      if (c.result === WCAGResult.OUT_OF_SCOPE) cardClass = 'oos';
 
       html += `
         <div class="card ${cardClass}">
           <h3>${c.id} ${c.name} <span style="font-size:0.7em; background:#eee; padding:2px 6px; border-radius:4px;">${c.level}</span></h3>
           <p>${c.description}</p>
-          <p><strong>Resultaat:</strong> <span class="status-${cardClass}">${c.result}</span></p>
+          <p><strong>Resultaat:</strong> <span class="status-${cardClass === 'oos' ? 'oos' : cardClass}">${c.result}</span></p>
       `;
 
       if (c.findings && c.findings.length > 0) {

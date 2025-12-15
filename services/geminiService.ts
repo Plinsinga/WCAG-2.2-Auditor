@@ -1,163 +1,84 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { ReportData, WCAGResult, WCAGLevel } from "../types";
+import { ReportData, WCAGResult, WCAGLevel, Principle, Criterion } from "../types";
+import { WCAG22_TEMPLATE } from "../data/wcag22";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const responseSchema: Schema = {
+// Updated schema to include new result types
+const analysisSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    // We keep meta in schema to handle potential AI generated fallbacks, 
-    // but we will overwrite it with user input in the function.
-    meta: {
-      type: Type.OBJECT,
-      properties: {
-        client: { type: Type.STRING },
-        product: { type: Type.STRING },
-        date: { type: Type.STRING },
-        version: { type: Type.STRING },
-        researchers: { type: Type.STRING },
-      },
-    },
-    scope: {
-      type: Type.OBJECT,
-      properties: {
-        inScope: { type: Type.ARRAY, items: { type: Type.STRING } },
-        outScope: { type: Type.ARRAY, items: { type: Type.STRING } },
-      },
-    },
-    summary: {
-      type: Type.OBJECT,
-      properties: {
-        conclusion: { type: Type.STRING },
-        feedback: { type: Type.STRING },
-        scores: {
-          type: Type.OBJECT,
-          properties: {
-            wcag21: {
-              type: Type.OBJECT,
-              properties: {
-                pass: { type: Type.NUMBER },
-                total: { type: Type.NUMBER },
-              },
-            },
-            wcag22: {
-              type: Type.OBJECT,
-              properties: {
-                pass: { type: Type.NUMBER },
-                total: { type: Type.NUMBER },
-              },
-            },
-          },
-        },
-      },
-    },
-    principles: {
+    conclusion: { type: Type.STRING },
+    feedback: { type: Type.STRING },
+    criteria_results: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          name: { type: Type.STRING },
-          description: { type: Type.STRING },
-          stats: {
-            type: Type.OBJECT,
-            properties: {
-              pass: { type: Type.NUMBER },
-              fail: { type: Type.NUMBER },
-              total: { type: Type.NUMBER },
-            },
+          id: { type: Type.STRING },
+          result: {
+            type: Type.STRING,
+            enum: [
+              WCAGResult.PASS,
+              WCAGResult.FAIL,
+              WCAGResult.NOT_CHECKED,
+              WCAGResult.NA,
+              WCAGResult.OUT_OF_SCOPE,
+            ],
           },
-          criteria: {
+          reason: { type: Type.STRING, description: "Reason why it is Nog niet onderzocht, Niet relevant or Buiten scope." },
+          findings: {
             type: Type.ARRAY,
             items: {
               type: Type.OBJECT,
               properties: {
-                id: { type: Type.STRING },
-                name: { type: Type.STRING },
-                description: { type: Type.STRING },
-                level: { type: Type.STRING, enum: [WCAGLevel.A, WCAGLevel.AA] },
-                result: {
-                  type: Type.STRING,
-                  enum: [
-                    WCAGResult.PASS,
-                    WCAGResult.FAIL,
-                    WCAGResult.NA,
-                    WCAGResult.NOT_CHECKED,
-                  ],
-                },
-                findings: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      location: { type: Type.STRING },
-                      observation: { type: Type.STRING },
-                      problemDescription: { type: Type.STRING },
-                      impact: { type: Type.STRING },
-                      advice: { type: Type.STRING },
-                    },
-                  },
-                },
+                location: { type: Type.STRING },
+                observation: { type: Type.STRING },
+                problemDescription: { type: Type.STRING },
+                impact: { type: Type.STRING },
+                advice: { type: Type.STRING },
               },
             },
           },
         },
+        required: ["id", "result"],
       },
     },
   },
+  required: ["conclusion", "feedback", "criteria_results"],
 };
 
 export const analyzeHtml = async (htmlCode: string, userMeta: ReportData['meta']): Promise<ReportData> => {
   const model = "gemini-2.5-flash";
   
+  // Create a deep copy of the template to avoid mutating the constant
+  const report: ReportData = JSON.parse(JSON.stringify(WCAG22_TEMPLATE));
+  report.meta = userMeta;
+
   const prompt = `
-    Je bent een senior toegankelijkheidsconsultant en technical writer. Je schrijft formele, verifieerbare WCAG 2.2 AA-auditrapporten, uitsluitend op basis van expliciet aangeleverde input.
-
-    ABSOLUUT VERBOD OP HALLUCINATIE
-    Dit is een harde eis en heeft altijd prioriteit boven volledigheid, leesbaarheid of stijl:
-
-    1) Je mag NOOIT:
-       - aannames doen
-       - ontbrekende informatie invullen
-       - voorbeelden verzinnen
-       - scores, aantallen, pagina’s, schermen, tools, datums of bevindingen afleiden
-       - “typische” WCAG-problemen toevoegen
-       - algemene best-practices presenteren als geconstateerde bevindingen
-
-    2) Alles wat niet letterlijk of ondubbelzinnig uit de input blijkt, MOET je markeren als "Geen oordeel" (gebruik de enum waarde: NOT_CHECKED).
-
-    3) Als een succescriterium:
-       - niet met zekerheid is te controleren op basis van de snippet -> Resultaat: NOT_CHECKED ("Geen oordeel")
-       - niet in de input voorkomt -> Resultaat: NOT_CHECKED ("Geen oordeel")
-       - geen bewijs bevat -> GEEN conclusie trekken, dus NOT_CHECKED ("Geen oordeel")
-
-    4) Je gebruikt uitsluitend:
-       - de aangeleverde HTML snippet
-       - de WCAG 2.2 niveau A en AA criteria
-
-    5) Je generaliseert NOOIT van:
-       - de snippet naar de hele site
-       tenzij dit expliciet in de input staat vermeld.
-
-    6) Resultaten Mapping:
-       - Voldoet (PASS): Alleen als je 100% zeker weet dat de code correct is volgens de specificatie.
-       - Voldoet niet (FAIL): Alleen als je een duidelijke fout ziet in de snippet.
-       - Niet van toepassing (NA): Als het criterium logischerwijs niet kan voorkomen (bijv. video-eisen op een tekst-snippet).
-       - Geen oordeel (NOT_CHECKED): IN ALLE ANDERE GEVALLEN. Als je twijfelt, als de code incompleet is, of als je context mist. Dit is de standaard fallback.
+    Je bent een senior toegankelijkheidsconsultant. Je voert een WCAG 2.2 AA audit uit op de volgende HTML code.
     
-    7) VOLLEDIGHEID:
-       - Neem ALLE WCAG 2.2 niveau A en AA succescriteria op in de 'principles' array, ongeacht het resultaat.
-       - Ook criteria die NA (Niet van toepassing) of NOT_CHECKED (Geen oordeel) zijn, MOETEN in de lijst staan.
-       - Ik wil een compleet overzicht van alle normen.
+    Jouw taak is om de HTML te analyseren en voor ELK relevant succescriterium exact één van de volgende statussen te kiezen:
+    
+    1. "Voldoet" (PASS) - Als uit de code blijkt dat het criterium correct is geïmplementeerd.
+    2. "Voldoet niet" (FAIL) - Als er duidelijke fouten zijn gevonden.
+    3. "Niet relevant" (NA) - Als de content waar dit criterium over gaat NIET aanwezig is (bijv. geen video, geen audio, geen tijdslimieten).
+    4. "Buiten scope" (OUT_OF_SCOPE) - Als de content aanwezig is maar buiten de controle van deze audit valt (bijv. 3rd party widgets).
+    5. "Nog niet onderzocht" (NOT_CHECKED) - Voor zaken die je niet automatisch kunt vaststellen (bijv. subjectieve designs, toetsenbord navigatie zonder JS context).
 
-    8) Metadata:
-       - De metadata (opdrachtgever, datum, etc) wordt door de gebruiker aangeleverd en later ingevoegd. Je mag voor de "meta" sectie placeholders gebruiken of "Zie input" invullen. Focus je volledig op de technische audit.
-
-    HTML SNIPPET OM TE ANALYSEREN:
+    HTML CODE OM TE ANALYSEREN:
     \`\`\`html
     ${htmlCode}
     \`\`\`
 
-    Genereer de output strikt volgens het gedefinieerde JSON schema.
+    INSTRUCTIES:
+    1. Wees streng maar rechtvaardig.
+    2. Voor statussen anders dan PASS/FAIL, geef ALTIJD een korte \`reason\` (reden).
+       - Bijv: bij 'Niet relevant': "Geen video content aanwezig."
+       - Bijv: bij 'Nog niet onderzocht': "Vereist handmatige controle van tab-volgorde."
+    3. Voor 'Voldoet niet' (FAIL), genereer specifieke bevindingen.
+
+    Geef ook een algemene conclusie en feedback.
   `;
 
   try {
@@ -166,19 +87,70 @@ export const analyzeHtml = async (htmlCode: string, userMeta: ReportData['meta']
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
-        responseSchema: responseSchema,
+        responseSchema: analysisSchema,
       },
     });
 
     if (response.text) {
-      const data = JSON.parse(response.text) as ReportData;
-      // Overwrite the metadata with the user provided inputs to guarantee accuracy and no hallucinations
-      data.meta = userMeta;
-      return data;
+      const analysis = JSON.parse(response.text) as {
+        conclusion: string;
+        feedback: string;
+        criteria_results: { id: string; result: WCAGResult; reason?: string; findings?: any[] }[];
+      };
+
+      // Merge AI analysis into the template
+      report.summary.conclusion = analysis.conclusion || "Geen conclusie gegenereerd.";
+      report.summary.feedback = analysis.feedback || "";
+
+      const resultsMap = new Map(analysis.criteria_results.map(r => [r.id, r]));
+
+      report.principles.forEach(p => {
+        p.criteria.forEach(c => {
+          if (resultsMap.has(c.id)) {
+            const aiResult = resultsMap.get(c.id)!;
+            c.result = aiResult.result;
+            
+            // Map reason if present
+            if (aiResult.reason) {
+              c.reason = aiResult.reason;
+            }
+
+            if (aiResult.findings && aiResult.findings.length > 0) {
+              c.findings = aiResult.findings;
+            }
+          }
+        });
+      });
+
+      // Recalculate stats for summary scores
+      let totalPass22 = 0, totalTotal22 = 0;
+
+      report.principles.forEach(p => {
+        let pPass = 0, pFail = 0;
+        p.criteria.forEach(c => {
+          if (c.level === WCAGLevel.A || c.level === WCAGLevel.AA) {
+             const isPass = c.result === WCAGResult.PASS;
+             const isFail = c.result === WCAGResult.FAIL;
+             
+             if (isPass) pPass++;
+             if (isFail) pFail++;
+          }
+        });
+        p.stats = { pass: pPass, fail: pFail, total: p.criteria.length };
+        
+        totalPass22 += pPass;
+        totalTotal22 += p.criteria.length;
+      });
+
+      report.summary.scores.wcag22 = { pass: totalPass22, total: totalTotal22 };
+      report.summary.scores.wcag21 = { pass: totalPass22, total: totalTotal22 };
+
+      return report;
     }
     throw new Error("No response generated");
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
-    throw error;
+    report.summary.conclusion = "Fout bij AI analyse. Probeer het opnieuw.";
+    return report;
   }
 };

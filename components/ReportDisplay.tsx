@@ -11,12 +11,10 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
   // Ensure arrays are safe to iterate
   const safePrinciples = principles || [];
   const safeScopeIn = scope?.inScope || [];
-  // scope might be undefined if AI hallucinates structure slightly
-  const safeScope = scope || { inScope: [], outScope: [] };
-
+  
   // Helper to calculate stats per level
   const calculateStats = (level: WCAGLevel) => {
-    let pass = 0, fail = 0, notChecked = 0, na = 0, total = 0;
+    let pass = 0, fail = 0, notChecked = 0, na = 0, outOfScope = 0, total = 0;
     
     safePrinciples.forEach(p => {
       (p.criteria || []).forEach(c => {
@@ -26,11 +24,12 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
           else if (c.result === WCAGResult.FAIL) fail++;
           else if (c.result === WCAGResult.NOT_CHECKED) notChecked++;
           else if (c.result === WCAGResult.NA) na++;
+          else if (c.result === WCAGResult.OUT_OF_SCOPE) outOfScope++;
         }
       });
     });
 
-    return { pass, fail, notChecked, na, total };
+    return { pass, fail, notChecked, na, outOfScope, total };
   };
 
   const statsA = calculateStats(WCAGLevel.A);
@@ -40,6 +39,7 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
     fail: statsA.fail + statsAA.fail,
     notChecked: statsA.notChecked + statsAA.notChecked,
     na: statsA.na + statsAA.na,
+    outOfScope: statsA.outOfScope + statsAA.outOfScope,
     total: statsA.total + statsAA.total
   };
   
@@ -48,7 +48,6 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
   const criteriaA = allCriteria.filter(c => c.level === WCAGLevel.A);
   const criteriaAA = allCriteria.filter(c => c.level === WCAGLevel.AA);
 
-  // Safe access for summaries
   const safeSummary = summary || { conclusion: '', feedback: '', scores: { wcag21: {pass:0, total:0}, wcag22: {pass:0, total:0} } };
 
   return (
@@ -58,7 +57,7 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
       <div className="relative h-[297mm] flex flex-col justify-between p-16 text-white overflow-hidden page-break"
            style={{ background: 'linear-gradient(135deg, #2e0b1f 0%, #a61e38 100%)' }}>
         
-        {/* Decorative circle lines (abstracted) */}
+        {/* Decorative circle lines */}
         <div className="absolute top-0 right-0 w-[800px] h-[800px] border border-white/10 rounded-full translate-x-1/3 -translate-y-1/3 pointer-events-none"></div>
         <div className="absolute top-0 right-0 w-[600px] h-[600px] border border-white/10 rounded-full translate-x-1/3 -translate-y-1/3 pointer-events-none"></div>
 
@@ -165,49 +164,54 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
         <p className="text-sm text-gray-700 mb-4">Om een niveau te halen, moeten alle punten met dat niveau voldoen aan de richtlijn.</p>
 
         <div className="overflow-hidden rounded-lg border border-gray-200 mb-8">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-xs text-left">
                 <thead className="bg-gray-50 text-gray-900 font-bold">
                     <tr>
-                        <th className="px-4 py-3 border-b">Niveau</th>
-                        <th className="px-4 py-3 border-b">Voldoet</th>
-                        <th className="px-4 py-3 border-b">Voldoet niet</th>
-                        <th className="px-4 py-3 border-b">Niet onderzocht</th>
-                        <th className="px-4 py-3 border-b">Buiten scope</th>
-                        <th className="px-4 py-3 border-b">Totaal</th>
+                        <th className="px-3 py-3 border-b">Niveau</th>
+                        <th className="px-3 py-3 border-b">Voldoet</th>
+                        <th className="px-3 py-3 border-b">Voldoet niet</th>
+                        <th className="px-3 py-3 border-b">Nog niet<br/>onderzocht</th>
+                        <th className="px-3 py-3 border-b">Niet<br/>relevant</th>
+                        <th className="px-3 py-3 border-b">Buiten<br/>scope</th>
+                        <th className="px-3 py-3 border-b">Totaal</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                     <tr>
-                        <td className="px-4 py-3 font-medium">Niveau A</td>
-                        <td className="px-4 py-3">{statsA.pass}</td>
-                        <td className="px-4 py-3 text-red-600 font-bold">{statsA.fail}</td>
-                        <td className="px-4 py-3">{statsA.notChecked}</td>
-                        <td className="px-4 py-3 text-gray-500">{statsA.na}</td>
-                        <td className="px-4 py-3 font-bold">{statsA.total}</td>
+                        <td className="px-3 py-3 font-medium">Niveau A</td>
+                        <td className="px-3 py-3 text-green-700 font-bold">{statsA.pass}</td>
+                        <td className="px-3 py-3 text-red-600 font-bold">{statsA.fail}</td>
+                        <td className="px-3 py-3 text-orange-600">{statsA.notChecked}</td>
+                        <td className="px-3 py-3 text-gray-400">{statsA.na}</td>
+                        <td className="px-3 py-3 text-gray-400">{statsA.outOfScope}</td>
+                        <td className="px-3 py-3 font-bold">{statsA.total}</td>
                     </tr>
                     <tr>
-                        <td className="px-4 py-3 font-medium">Niveau AA</td>
-                        <td className="px-4 py-3">{statsAA.pass}</td>
-                        <td className="px-4 py-3 text-red-600 font-bold">{statsAA.fail}</td>
-                        <td className="px-4 py-3">{statsAA.notChecked}</td>
-                        <td className="px-4 py-3 text-gray-500">{statsAA.na}</td>
-                        <td className="px-4 py-3 font-bold">{statsAA.total}</td>
+                        <td className="px-3 py-3 font-medium">Niveau AA</td>
+                        <td className="px-3 py-3 text-green-700 font-bold">{statsAA.pass}</td>
+                        <td className="px-3 py-3 text-red-600 font-bold">{statsAA.fail}</td>
+                        <td className="px-3 py-3 text-orange-600">{statsAA.notChecked}</td>
+                        <td className="px-3 py-3 text-gray-400">{statsAA.na}</td>
+                        <td className="px-3 py-3 text-gray-400">{statsAA.outOfScope}</td>
+                        <td className="px-3 py-3 font-bold">{statsAA.total}</td>
                     </tr>
                      <tr>
-                        <td className="px-4 py-3 font-medium text-gray-400">Niveau AAA</td>
-                        <td className="px-4 py-3 text-gray-400">-</td>
-                        <td className="px-4 py-3 text-gray-400">-</td>
-                        <td className="px-4 py-3 text-gray-400">-</td>
-                        <td className="px-4 py-3 text-gray-400">-</td>
-                        <td className="px-4 py-3 text-gray-400">-</td>
+                        <td className="px-3 py-3 font-medium text-gray-400">Niveau AAA</td>
+                        <td className="px-3 py-3 text-gray-400">-</td>
+                        <td className="px-3 py-3 text-gray-400">-</td>
+                        <td className="px-3 py-3 text-gray-400">-</td>
+                        <td className="px-3 py-3 text-gray-400">-</td>
+                        <td className="px-3 py-3 text-gray-400">-</td>
+                         <td className="px-3 py-3 text-gray-400">-</td>
                     </tr>
                     <tr className="bg-gray-50 font-bold">
-                        <td className="px-4 py-3">Totaal</td>
-                        <td className="px-4 py-3">{totalStats.pass}</td>
-                        <td className="px-4 py-3 text-red-600">{totalStats.fail}</td>
-                        <td className="px-4 py-3">{totalStats.notChecked}</td>
-                        <td className="px-4 py-3 text-gray-500">{totalStats.na}</td>
-                        <td className="px-4 py-3">{totalStats.total}</td>
+                        <td className="px-3 py-3">Totaal</td>
+                        <td className="px-3 py-3 text-green-700">{totalStats.pass}</td>
+                        <td className="px-3 py-3 text-red-600">{totalStats.fail}</td>
+                        <td className="px-3 py-3 text-orange-600">{totalStats.notChecked}</td>
+                        <td className="px-3 py-3 text-gray-500">{totalStats.na}</td>
+                        <td className="px-3 py-3 text-gray-500">{totalStats.outOfScope}</td>
+                        <td className="px-3 py-3">{totalStats.total}</td>
                     </tr>
                 </tbody>
             </table>
@@ -232,6 +236,8 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
                 <thead className="border-b-2 border-gray-100">
                     <tr>
                         <th className="py-2 font-bold text-gray-900 w-2/3">Richtlijn</th>
+                        <th className="py-2 font-bold text-gray-900 w-24">Disciplines</th>
+                        <th className="py-2 font-bold text-gray-900 w-24">Niveau</th>
                         <th className="py-2 font-bold text-gray-900">Resultaat</th>
                     </tr>
                 </thead>
@@ -242,16 +248,17 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
                                 <span className="font-medium text-gray-900 mr-2">{c.id}</span>
                                 {c.name}
                             </td>
+                            <td className="py-3 text-xs text-gray-500">{c.disciplines || '-'}</td>
+                            <td className="py-3 text-xs">{c.level}</td>
                             <td className="py-3">
                                 <span className={`
                                     ${c.result === WCAGResult.PASS ? 'text-green-600' : ''}
                                     ${c.result === WCAGResult.FAIL ? 'text-red-600 font-bold' : ''}
                                     ${c.result === WCAGResult.NA ? 'text-gray-400' : ''}
-                                    ${c.result === WCAGResult.NOT_CHECKED ? 'text-orange-500' : ''}
+                                    ${c.result === WCAGResult.NOT_CHECKED ? 'text-orange-600' : ''}
+                                    ${c.result === WCAGResult.OUT_OF_SCOPE ? 'text-gray-400 italic' : ''}
                                 `}>
-                                    {c.result === WCAGResult.NA ? 'buiten scope' : 
-                                     c.result === WCAGResult.NOT_CHECKED ? 'nog niet onderzocht' : 
-                                     c.result}
+                                    {c.result}
                                 </span>
                             </td>
                         </tr>
@@ -264,7 +271,7 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
       {/* --- PRINCIPLE SECTIONS & DETAILED CRITERIA --- */}
       {safePrinciples.map((principle, index) => (
         <React.Fragment key={index}>
-            {/* --- PRINCIPLE INTRO PAGE (e.g. Page 9 in PDF) --- */}
+            {/* --- PRINCIPLE INTRO PAGE --- */}
             <div className="h-[297mm] relative p-16 flex flex-col justify-center page-break bg-[#eee6e9]">
                 <div className="absolute top-0 right-0 w-[600px] h-[600px] border border-white/50 rounded-full translate-x-1/3 -translate-y-1/3 pointer-events-none opacity-20"></div>
                 
@@ -285,6 +292,11 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
                         <span className="bg-purple-200 text-purple-900 px-2 py-1 text-xs font-bold uppercase tracking-wider rounded-sm">
                             Niveau {criterion.level}
                         </span>
+                        {criterion.disciplines && (
+                             <span className="bg-gray-200 text-gray-700 px-2 py-1 text-xs font-bold uppercase tracking-wider rounded-sm">
+                                {criterion.disciplines}
+                            </span>
+                        )}
                     </div>
 
                     <h2 className="text-2xl font-bold text-gray-900 mb-6">
@@ -300,27 +312,48 @@ const ReportDisplay: React.FC<ReportDisplayProps> = ({ data }) => {
 
                     {/* Status Box */}
                     <div className={`mt-8 p-6 rounded-sm border-l-4 ${
-                        criterion.result === WCAGResult.NOT_CHECKED || criterion.result === WCAGResult.NA 
-                        ? 'bg-[#fdf8e4] border-gray-400 text-gray-700' 
+                        criterion.result === WCAGResult.NOT_CHECKED 
+                        ? 'bg-orange-50 border-orange-400 text-gray-800'
+                        : criterion.result === WCAGResult.NA || criterion.result === WCAGResult.OUT_OF_SCOPE
+                        ? 'bg-gray-50 border-gray-400 text-gray-700' 
                         : criterion.result === WCAGResult.FAIL 
                         ? 'bg-red-50 border-red-500' 
                         : 'bg-green-50 border-green-500'
                     }`}>
                         <div className="flex items-start gap-3">
                             <div className={`mt-0.5 w-4 h-4 border-2 flex-shrink-0 flex items-center justify-center
-                                ${criterion.result === WCAGResult.NOT_CHECKED || criterion.result === WCAGResult.NA ? 'border-gray-500' : 
-                                criterion.result === WCAGResult.FAIL ? 'border-red-600 bg-red-600' : 'border-green-600 bg-green-600'}
+                                ${criterion.result === WCAGResult.NOT_CHECKED ? 'border-orange-500' :
+                                  criterion.result === WCAGResult.NA || criterion.result === WCAGResult.OUT_OF_SCOPE ? 'border-gray-500' : 
+                                  criterion.result === WCAGResult.FAIL ? 'border-red-600 bg-red-600' : 'border-green-600 bg-green-600'}
                             `}>
                                 {(criterion.result === WCAGResult.FAIL || criterion.result === WCAGResult.PASS) && (
                                     <div className="w-2 h-2 bg-white rounded-full"></div> 
                                 )}
                             </div>
                             
-                            <div className="text-sm">
-                                {criterion.result === WCAGResult.NOT_CHECKED && <p>Deze richtlijn is op dit moment nog niet onderzocht.</p>}
-                                {criterion.result === WCAGResult.NA && <p>Deze richtlijn is niet meegenomen in de scope van het onderzoek.</p>}
-                                {criterion.result === WCAGResult.PASS && <p className="font-bold text-green-800">Voldoet.</p>}
-                                {criterion.result === WCAGResult.FAIL && <p className="font-bold text-red-800">Voldoet niet.</p>}
+                            <div className="text-sm w-full">
+                                <p className={`font-bold mb-1 ${
+                                    criterion.result === WCAGResult.PASS ? 'text-green-800' :
+                                    criterion.result === WCAGResult.FAIL ? 'text-red-800' :
+                                    criterion.result === WCAGResult.NOT_CHECKED ? 'text-orange-800' :
+                                    'text-gray-800'
+                                }`}>
+                                    {criterion.result}
+                                </p>
+                                
+                                {(criterion.reason) && (
+                                     <p className="text-gray-700 mt-1 italic">{criterion.reason}</p>
+                                )}
+
+                                {!criterion.reason && criterion.result === WCAGResult.NOT_CHECKED && (
+                                    <p className="text-gray-700 mt-1">Deze richtlijn is op dit moment nog niet onderzocht.</p>
+                                )}
+                                {!criterion.reason && criterion.result === WCAGResult.NA && (
+                                    <p className="text-gray-700 mt-1">Deze richtlijn is niet relevant voor de huidige content.</p>
+                                )}
+                                {!criterion.reason && criterion.result === WCAGResult.OUT_OF_SCOPE && (
+                                    <p className="text-gray-700 mt-1">Dit onderdeel valt buiten de scope van dit onderzoek.</p>
+                                )}
                             </div>
                         </div>
                     </div>
